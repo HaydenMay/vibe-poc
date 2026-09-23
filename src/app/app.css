@@ -1,0 +1,31 @@
+:host { display: block; min-height: 100dvh; }
+.page { min-height: 100dvh; overflow-x: hidden; position: relative; background: #080c19; color: #f7f8ff; }
+.glow { position: absolute; top: 36%; left: 50%; width: min(85vw, 430px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #8277ff 0%, #4344b8 35%, transparent 70%); filter: blur(28px); pointer-events: none; transition: transform 80ms linear, opacity 80ms linear; }
+.content { position: relative; z-index: 1; width: min(100%, 480px); box-sizing: border-box; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
+header { text-align: center; margin-bottom: 26px; }
+.eyebrow { margin: 0 0 12px; color: #aaa7ff; font-size: 11px; font-weight: 700; letter-spacing: .18em; }
+h1 { font-size: clamp(36px, 10vw, 52px); letter-spacing: -.055em; line-height: 1; margin: 0 0 16px; }
+.status { min-height: 2.7em; max-width: 340px; margin: 0 auto; color: #ced0e8; line-height: 1.45; font-size: 15px; }
+button { display: block; width: 100%; min-height: 54px; border: 0; border-radius: 15px; font: inherit; font-weight: 700; cursor: pointer; }
+.primary { background: #b7acff; color: #101027; box-shadow: 0 8px 34px #6559d055; }
+.primary:disabled { opacity: .7; cursor: wait; }
+.secondary { margin-top: 22px; color: #f7f8ff; background: #ffffff1d; border: 1px solid #ffffff34; }
+.visuals { margin-top: 10px; }
+.beat { width: 156px; height: 156px; display: grid; place-items: center; margin: 0 auto 26px; border-radius: 50%; background: #ffffff12; border: 2px solid #a79eff88; box-shadow: 0 0 0 0 #a79eff00; color: #d4d0ff; font-size: 17px; font-weight: 800; letter-spacing: .1em; transform: scale(calc(1 + var(--strength) * .12)); transition: transform 90ms ease-out, background 90ms ease-out, box-shadow 90ms ease-out; }
+.beat.active { background: #b7acff; color: #17122e; box-shadow: 0 0 45px #a79effaa; }
+.meters { display: grid; gap: 17px; }
+.meter-label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 7px; font-size: 14px; font-weight: 600; }
+.meter-label span:last-child { font-variant-numeric: tabular-nums; color: #c7c2fa; }
+.bar { height: 14px; overflow: hidden; background: #ffffff21; border-radius: 99px; }
+.bar > div { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #756ce3, #c4bbff); transition: width 70ms linear; }
+.diagnostics { margin-top: 28px; padding: 17px; border: 1px solid #ffffff2a; border-radius: 14px; background: #080c19c9; font-size: 12px; }
+.diagnostics h2 { font-size: 13px; margin: 0 0 11px; letter-spacing: .07em; text-transform: uppercase; color: #c7c2fa; }
+.diagnostics dl { margin: 0; }
+.diagnostics dl > div { display: flex; justify-content: space-between; gap: 12px; margin: 7px 0; }
+.diagnostics dt { color: #aaaeca; }
+.diagnostics dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.diagnostics details { margin-top: 13px; border-top: 1px solid #ffffff20; padding-top: 11px; }
+.diagnostics summary { cursor: pointer; color: #d9d5ff; }
+.diagnostics pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; color: #c9cbe0; }
+.error { color: #ffb6c1; overflow-wrap: anywhere; margin-bottom: 0; }
+@media (max-height: 730px) { .beat { width: 120px; height: 120px; margin-bottom: 19px; } header { margin-bottom: 17px; } .meters { gap: 12px; } }

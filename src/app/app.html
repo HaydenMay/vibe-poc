@@ -1,0 +1,42 @@
+<main class="page">
+  <div class="glow" [style.transform]="'translate(-50%, -50%) scale(' + (1 + frame().volume * 0.8 + frame().bass * 0.35 + frame().beatStrength * 0.3) + ')'" [style.opacity]="0.2 + frame().volume * 0.5 + frame().beatStrength * 0.2" aria-hidden="true"></div>
+  <div class="content">
+    <header>
+      <p class="eyebrow">SAME-IPHONE AUDIO TEST</p>
+      <h1>Vibe POC</h1>
+      <p class="status" role="status">{{ message() }}</p>
+    </header>
+    @if (status() !== 'listening') {
+      <button class="primary" type="button" (click)="startListening()" [disabled]="status() === 'requesting'">
+        {{ status() === 'requesting' ? 'Requesting microphone…' : 'Start Listening' }}
+      </button>
+    } @else {
+      <section class="visuals" aria-label="Live audio levels">
+        <div class="beat" [class.active]="frame().beat" [style.--strength]="frame().beatStrength">
+          <span>{{ frame().beat ? 'BEAT' : 'LISTENING' }}</span>
+        </div>
+        <div class="meters">
+          <div class="meter"><div class="meter-label"><span>Volume</span><span>{{ (frame().volume * 100).toFixed(0) }}%</span></div><div class="bar"><div [style.width.%]="frame().volume * 100"></div></div></div>
+          <div class="meter"><div class="meter-label"><span>Bass</span><span>{{ (frame().bass * 100).toFixed(0) }}%</span></div><div class="bar"><div [style.width.%]="frame().bass * 100"></div></div></div>
+          <div class="meter"><div class="meter-label"><span>Mid</span><span>{{ (frame().mid * 100).toFixed(0) }}%</span></div><div class="bar"><div [style.width.%]="frame().mid * 100"></div></div></div>
+          <div class="meter"><div class="meter-label"><span>High / Treble</span><span>{{ (frame().high * 100).toFixed(0) }}%</span></div><div class="bar"><div [style.width.%]="frame().high * 100"></div></div></div>
+        </div>
+      </section>
+      <button class="secondary" type="button" (click)="stopListening()">Stop Listening</button>
+    }
+    <section class="diagnostics" aria-label="Diagnostics">
+      <h2>Diagnostics</h2>
+      <dl>
+        <div><dt>Capture</dt><dd>{{ status() }} · track {{ trackState() }}</dd></div>
+        <div><dt>AudioContext</dt><dd>{{ contextState() }}</dd></div>
+        <div><dt>Sample rate</dt><dd>{{ sampleRate() === null ? '—' : sampleRate() + ' Hz' }}</dd></div>
+        <div><dt>audioSession</dt><dd>{{ audioSessionAvailable() ? 'available' : 'unavailable' }} · {{ audioSessionType() }}</dd></div>
+      </dl>
+      <details>
+        <summary>Actual microphone track settings</summary>
+        <pre>{{ trackSettings() }}</pre>
+      </details>
+      @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+    </section>
+  </div>
+</main>
