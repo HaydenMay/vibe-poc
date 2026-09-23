@@ -7,6 +7,13 @@
       <p class="status" role="status">{{ message() }}</p>
     </header>
     @if (status() !== 'listening') {
+      <label class="session-control" for="audio-session-mode">
+        <span>Audio Session</span>
+        <select id="audio-session-mode" [value]="requestedAudioSessionMode()" (change)="onAudioSessionModeChange($event)" [disabled]="!audioSessionAvailable() || status() === 'requesting'">
+          <option value="auto">Auto</option>
+          <option value="play-and-record">Play &amp; Record</option>
+        </select>
+      </label>
       <button class="primary" type="button" (click)="startListening()" [disabled]="status() === 'requesting'">
         {{ status() === 'requesting' ? 'Requesting microphone…' : 'Start Listening' }}
       </button>
@@ -30,8 +37,15 @@
         <div><dt>Capture</dt><dd>{{ status() }} · track {{ trackState() }}</dd></div>
         <div><dt>AudioContext</dt><dd>{{ contextState() }}</dd></div>
         <div><dt>Sample rate</dt><dd>{{ sampleRate() === null ? '—' : sampleRate() + ' Hz' }}</dd></div>
-        <div><dt>audioSession</dt><dd>{{ audioSessionAvailable() ? 'available' : 'unavailable' }} · {{ audioSessionType() }}</dd></div>
+        <div><dt>Requested mode</dt><dd>{{ requestedAudioSessionMode() }}</dd></div>
+        <div><dt>audioSession</dt><dd>{{ audioSessionAvailable() ? 'available' : 'unavailable' }}</dd></div>
+        <div><dt>Actual type</dt><dd>{{ audioSessionType() }}</dd></div>
+        <div><dt>Set result</dt><dd>{{ sessionSetResult() }}</dd></div>
+        <div><dt>Restore result</dt><dd>{{ sessionRestoreResult() }}</dd></div>
       </dl>
+      @if (sessionSetError()) { <p class="error">Set error: {{ sessionSetError() }}</p> }
+      @if (sessionRestoreError()) { <p class="error">Restore error: {{ sessionRestoreError() }}</p> }
+      @if (sessionReadError()) { <p class="error">Read error: {{ sessionReadError() }}</p> }
       <details>
         <summary>Actual microphone track settings</summary>
         <pre>{{ trackSettings() }}</pre>

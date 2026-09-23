@@ -10,6 +10,8 @@ interface AudioReactiveFrame {
 }
 
 type CaptureStatus = 'idle' | 'requesting' | 'listening' | 'stopped' | 'error';
+type AudioSessionMode = 'auto' | 'play-and-record';
+type AudioSessionLike = { type: string };
 
 const EMPTY_FRAME: AudioReactiveFrame = {
   volume: 0, bass: 0, mid: 0, high: 0, beat: false, beatStrength: 0,
@@ -33,6 +35,12 @@ export class App implements OnDestroy {
   readonly trackSettings = signal('not acquired');
   readonly audioSessionAvailable = signal(false);
   readonly audioSessionType = signal('unavailable');
+  readonly requestedAudioSessionMode = signal<AudioSessionMode>('auto');
+  readonly sessionSetResult = signal('not attempted (Auto)');
+  readonly sessionSetError = signal('');
+  readonly sessionRestoreResult = signal('not attempted');
+  readonly sessionRestoreError = signal('');
+  readonly sessionReadError = signal('');
 
   private stream: MediaStream | null = null;
   private context: AudioContext | null = null;
@@ -51,10 +59,26 @@ export class App implements OnDestroy {
   private beatUntil = 0;
   private peakBeatStrength = 0;
 
+  constructor() {
+    this.updateAudioSessionDiagnostic();
+  }
+
+  onAudioSessionModeChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    const mode = value === 'play-and-record' ? 'play-and-record' : 'auto';
+    this.requestedAudioSessionMode.set(mode);
+    this.sessionSetResult.set(mode === 'auto' ? 'not attempted (Auto)' : 'not attempted');
+    this.sessionSetError.set('');
+  }
+
   async startListening(): Promise<void> {
     if (this.destroyed || this.status() === 'requesting' || this.status() === 'listening') return;
     const token = ++this.startToken;
     this.error.set('');
+    this.sessionSetResult.set(this.requestedAudioSessionMode() === 'auto' ? 'not attempted (Auto)' : 'not attempted');
+    this.sessionSetError.set('');
+    this.sessionRestoreResult.set('not attempted');
+    this.sessionRestoreError.set('');
     this.sampleRate.set(null);
     this.trackState.set('not acquired');
     this.trackSettings.set('not acquired');
@@ -66,6 +90,9 @@ export class App implements OnDestroy {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error('Microphone access is unavailable. Open this page over HTTPS in Safari.');
+      }
+      if (this.requestedAudioSessionMode() === 'play-and-record') {
+        this.setAudioSessionType('play-and-record', 'start');
       }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
@@ -210,9 +237,39 @@ export class App implements OnDestroy {
   }
 
   private updateAudioSessionDiagnostic(): void {
-    const session = (navigator as Navigator & { audioSession?: { type?: string } }).audioSession;
-    this.audioSessionAvailable.set(Boolean(session));
-    this.audioSessionType.set(session?.type ?? 'unavailable');
+    try {
+      const session = (navigator as Navigator & { audioSession?: AudioSessionLike }).audioSession;
+      this.audioSessionAvailable.set(Boolean(session));
+      this.audioSessionType.set(session?.type ?? 'unavailable');
+      this.sessionReadError.set('');
+    } catch (cause) {
+      this.audioSessionAvailable.set(false);
+      this.audioSessionType.set('unavailable');
+      this.sessionReadError.set(this.errorMessage(cause));
+    }
+  }
+
+  private setAudioSessionType(type: AudioSessionMode, phase: 'start' | 'restore'): void {
+    const result = phase === 'start' ? this.sessionSetResult : this.sessionRestoreResult;
+    const error = phase === 'start' ? this.sessionSetError : this.sessionRestoreError;
+    try {
+      const session = (navigator as Navigator & { audioSession?: AudioSessionLike }).audioSession;
+      if (!session) {
+        result.set('unavailable');
+        return;
+      }
+      session.type = type;
+      result.set(session.type === type ? 'succeeded' : 'failed (readback differs)');
+      this.updateAudioSessionDiagnostic();
+    } catch (cause) {
+      result.set('failed');
+      error.set(this.errorMessage(cause));
+      this.updateAudioSessionDiagnostic();
+    }
+  }
+
+  private errorMessage(cause: unknown): string {
+    return cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
   }
 
   private resetAnalysis(): void {
@@ -250,6 +307,7 @@ export class App implements OnDestroy {
     this.contextState.set(hadContext ? 'closed' : 'not created');
     this.trackState.set(hadStream ? 'ended' : 'not acquired');
     this.resetAnalysis();
+    this.setAudioSessionType('auto', 'restore');
     this.updateAudioSessionDiagnostic();
   }
 }

@@ -7,6 +7,9 @@ header { text-align: center; margin-bottom: 26px; }
 h1 { font-size: clamp(36px, 10vw, 52px); letter-spacing: -.055em; line-height: 1; margin: 0 0 16px; }
 .status { min-height: 2.7em; max-width: 340px; margin: 0 auto; color: #ced0e8; line-height: 1.45; font-size: 15px; }
 button { display: block; width: 100%; min-height: 54px; border: 0; border-radius: 15px; font: inherit; font-weight: 700; cursor: pointer; }
+.session-control { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; font-size: 14px; font-weight: 600; }
+.session-control select { min-width: 154px; min-height: 44px; padding: 0 12px; border: 1px solid #ffffff55; border-radius: 10px; background: #1c2140; color: #f7f8ff; font: inherit; }
+.session-control select:disabled { opacity: .5; }
 .primary { background: #b7acff; color: #101027; box-shadow: 0 8px 34px #6559d055; }
 .primary:disabled { opacity: .7; cursor: wait; }
 .secondary { margin-top: 22px; color: #f7f8ff; background: #ffffff1d; border: 1px solid #ffffff34; }
