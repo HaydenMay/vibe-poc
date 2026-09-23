@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "tmp/lively-test",
+    "rootDir": "src"
+  },
+  "files": [
+    "src/app/audio-reactive-frame.ts",
+    "src/app/lively-audio.provider.ts"
+  ]
+}

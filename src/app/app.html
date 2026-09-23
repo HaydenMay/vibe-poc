@@ -11,14 +11,14 @@
     {{ debugVisible() ? 'Hide debug' : 'Debug' }}
   </button>
 
-  @if (status() !== 'listening') {
+  @if (!isLivelyBuild && status() !== 'listening') {
     <section class="welcome" aria-labelledby="scene-title">
       <p class="chapter">AFTER DARK / ALWAYS MOVING</p>
       <h1 id="scene-title">Neon <em>Rain</em></h1>
       <p class="description">A city at night, breathing with the sound around you.</p>
       <label class="session-control" for="audio-session-mode">
         <span>Audio Session</span>
-        <select id="audio-session-mode" [value]="requestedAudioSessionMode()" (change)="onAudioSessionModeChange($event)" [disabled]="!audioSessionAvailable() || status() === 'requesting'">
+        <select id="audio-session-mode" [value]="requestedAudioSessionMode()" (change)="onAudioSessionModeChange($event)" [disabled]="!microphoneDiagnostics().audioSessionAvailable || status() === 'requesting'">
           <option value="auto">Auto</option>
           <option value="play-and-record">Play &amp; Record</option>
         </select>
@@ -31,14 +31,15 @@
       @if (error()) { <p class="visible-error" role="alert">{{ error() }}</p> }
     </section>
   } @else {
-    <div class="live-label"><span class="live-dot" aria-hidden="true"></span><span>LISTENING TO THE ROOM</span></div>
-    <button class="stop-button" type="button" (click)="stopListening()">Stop</button>
+    <div class="live-label"><span class="live-dot" aria-hidden="true"></span><span>{{ isLivelyBuild ? 'SYSTEM AUDIO · LIVELY' : 'LISTENING TO THE ROOM' }}</span></div>
+    @if (!isLivelyBuild) { <button class="stop-button" type="button" (click)="stopListening()">Stop</button> }
   }
 
   @if (debugVisible()) {
     <aside class="debug-panel" aria-label="Audio debug information">
       <div class="debug-header"><span>LIVE AUDIO</span><span>{{ fps() }} FPS</span></div>
       <div class="debug-meters">
+        <div class="debug-meter"><div><span>Provider</span><span>{{ providerName }}</span></div></div>
         <div class="debug-meter"><div><span>Volume</span><span>{{ (frame().volume * 100).toFixed(0) }}%</span></div><b><i [style.width.%]="frame().volume * 100"></i></b></div>
         <div class="debug-meter"><div><span>Bass</span><span>{{ (frame().bass * 100).toFixed(0) }}%</span></div><b><i [style.width.%]="frame().bass * 100"></i></b></div>
         <div class="debug-meter"><div><span>Mid</span><span>{{ (frame().mid * 100).toFixed(0) }}%</span></div><b><i [style.width.%]="frame().mid * 100"></i></b></div>
@@ -47,23 +48,31 @@
       </div>
       <dl>
         <div><dt>Beat</dt><dd>{{ frame().beat ? 'yes' : 'no' }} · {{ (frame().beatStrength * 100).toFixed(0) }}%</dd></div>
-        <div><dt>Capture</dt><dd>{{ status() }} · {{ trackState() }}</dd></div>
-        <div><dt>AudioContext</dt><dd>{{ contextState() }}</dd></div>
-        <div><dt>Sample rate</dt><dd>{{ sampleRate() === null ? '—' : sampleRate() + ' Hz' }}</dd></div>
-        <div><dt>Requested mode</dt><dd>{{ requestedAudioSessionMode() }}</dd></div>
-        <div><dt>audioSession</dt><dd>{{ audioSessionAvailable() ? 'available' : 'unavailable' }}</dd></div>
-        <div><dt>Actual type</dt><dd>{{ audioSessionType() }}</dd></div>
-        <div><dt>Set result</dt><dd>{{ sessionSetResult() }}</dd></div>
-        <div><dt>Restore result</dt><dd>{{ sessionRestoreResult() }}</dd></div>
+        @if (isLivelyBuild) {
+          <div><dt>Capture</dt><dd>{{ livelyDiagnostics().callbacks }} audio callbacks · {{ livelyDiagnostics().paused ? 'paused' : 'active' }}</dd></div>
+          <div><dt>Raw peak</dt><dd>{{ livelyDiagnostics().rawPeak.toFixed(3) }}</dd></div>
+          <div><dt>Raw average</dt><dd>{{ livelyDiagnostics().rawAverage.toFixed(3) }}</dd></div>
+        } @else {
+          <div><dt>Capture</dt><dd>{{ status() }} · {{ microphoneDiagnostics().trackState }}</dd></div>
+          <div><dt>AudioContext</dt><dd>{{ microphoneDiagnostics().contextState }}</dd></div>
+          <div><dt>Sample rate</dt><dd>{{ microphoneDiagnostics().sampleRate === null ? '—' : microphoneDiagnostics().sampleRate + ' Hz' }}</dd></div>
+          <div><dt>Requested mode</dt><dd>{{ requestedAudioSessionMode() }}</dd></div>
+          <div><dt>audioSession</dt><dd>{{ microphoneDiagnostics().audioSessionAvailable ? 'available' : 'unavailable' }}</dd></div>
+          <div><dt>Actual type</dt><dd>{{ microphoneDiagnostics().audioSessionType }}</dd></div>
+          <div><dt>Set result</dt><dd>{{ microphoneDiagnostics().sessionSetResult }}</dd></div>
+          <div><dt>Restore result</dt><dd>{{ microphoneDiagnostics().sessionRestoreResult }}</dd></div>
+        }
       </dl>
-      @if (sessionSetError()) { <p class="debug-error">Set error: {{ sessionSetError() }}</p> }
-      @if (sessionRestoreError()) { <p class="debug-error">Restore error: {{ sessionRestoreError() }}</p> }
-      @if (sessionReadError()) { <p class="debug-error">Read error: {{ sessionReadError() }}</p> }
+      @if (microphoneDiagnostics().sessionSetError) { <p class="debug-error">Set error: {{ microphoneDiagnostics().sessionSetError }}</p> }
+      @if (microphoneDiagnostics().sessionRestoreError) { <p class="debug-error">Restore error: {{ microphoneDiagnostics().sessionRestoreError }}</p> }
+      @if (microphoneDiagnostics().sessionReadError) { <p class="debug-error">Read error: {{ microphoneDiagnostics().sessionReadError }}</p> }
       @if (error()) { <p class="debug-error">{{ error() }}</p> }
-      <details>
-        <summary>Actual microphone track settings</summary>
-        <pre>{{ trackSettings() }}</pre>
-      </details>
+      @if (!isLivelyBuild) {
+        <details>
+          <summary>Actual microphone track settings</summary>
+          <pre>{{ microphoneDiagnostics().trackSettings }}</pre>
+        </details>
+      }
     </aside>
   }
 </main>

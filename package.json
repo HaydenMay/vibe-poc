@@ -5,8 +5,11 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:web": "ng build --configuration production",
+    "build:lively": "ng build --configuration production,lively && node scripts/package-lively.mjs",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "test:lively": "tsc -p tsconfig.lively-test.json && node scripts/test-lively-audio.cjs"
   },
   "prettier": {
     "printWidth": 100,

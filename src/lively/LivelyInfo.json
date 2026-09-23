@@ -1,0 +1,17 @@
+{
+  "AppVersion": "1.0.0.0",
+  "Title": "Vibe - Neon Rain",
+  "Thumbnail": null,
+  "Preview": null,
+  "Desc": "Neon Rain ambient wallpaper that reacts to Windows system audio.",
+  "Author": "Vibe",
+  "License": null,
+  "Contact": "https://github.com/HaydenMay/vibe-poc",
+  "Type": 1,
+  "FileName": "index.html",
+  "Arguments": "--audio --pause-event true",
+  "IsAbsolutePath": false,
+  "Id": null,
+  "Tags": null,
+  "Version": 0
+}

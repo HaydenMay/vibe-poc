@@ -73,6 +73,30 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "lively": {
+              "outputPath": {
+                "base": "dist/lively",
+                "browser": ""
+              },
+              "baseHref": "./",
+              "assets": [
+                {
+                  "glob": "**/*",
+                  "input": "public"
+                },
+                {
+                  "glob": "LivelyInfo.json",
+                  "input": "src/lively",
+                  "output": "/"
+                }
+              ],
+              "fileReplacements": [
+                {
+                  "replace": "src/app/audio-provider-mode.ts",
+                  "with": "src/app/audio-provider-mode.lively.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
