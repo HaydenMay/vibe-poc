@@ -1,21 +1,12 @@
-import { Component, OnDestroy, signal } from '@angular/core';
-
-interface AudioReactiveFrame {
-  volume: number;
-  bass: number;
-  mid: number;
-  high: number;
-  beat: boolean;
-  beatStrength: number;
-}
+import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, signal } from '@angular/core';
+import { AudioReactiveFrame, EMPTY_AUDIO_FRAME } from './audio-reactive-frame';
+import { NeonRainEnvironment } from './neon-rain.environment';
+import { VibeEnvironment } from './vibe-environment';
 
 type CaptureStatus = 'idle' | 'requesting' | 'listening' | 'stopped' | 'error';
 type AudioSessionMode = 'auto' | 'play-and-record';
 type AudioSessionLike = { type: string };
 
-const EMPTY_FRAME: AudioReactiveFrame = {
-  volume: 0, bass: 0, mid: 0, high: 0, beat: false, beatStrength: 0,
-};
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 @Component({
@@ -24,10 +15,14 @@ const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
-export class App implements OnDestroy {
-  readonly frame = signal<AudioReactiveFrame>(EMPTY_FRAME);
+export class App implements AfterViewInit, OnDestroy {
+  @ViewChild('sceneCanvas', { static: true }) private sceneCanvas!: ElementRef<HTMLCanvasElement>;
+
+  readonly frame = signal<AudioReactiveFrame>(EMPTY_AUDIO_FRAME);
+  readonly debugVisible = signal(false);
+  readonly fps = signal(0);
   readonly status = signal<CaptureStatus>('idle');
-  readonly message = signal('Tap Start Listening, then play music through this iPhone’s speakers.');
+  readonly message = signal('An atmosphere shaped by the sound around you.');
   readonly error = signal('');
   readonly contextState = signal('not created');
   readonly sampleRate = signal<number | null>(null);
@@ -58,10 +53,50 @@ export class App implements OnDestroy {
   private lastBeatTime = -Infinity;
   private beatUntil = 0;
   private peakBeatStrength = 0;
+  private environment: VibeEnvironment | null = null;
+  private sceneAnimationId: number | null = null;
+  private lastSceneFrame = 0;
+  private fpsWindowStart = 0;
+  private renderedFrames = 0;
 
   constructor() {
     this.updateAudioSessionDiagnostic();
   }
+
+  ngAfterViewInit(): void {
+    try {
+      this.environment = new NeonRainEnvironment(this.sceneCanvas.nativeElement);
+      this.environment.start();
+      this.resizeEnvironment();
+      window.addEventListener('resize', this.resizeEnvironment);
+      window.visualViewport?.addEventListener('resize', this.resizeEnvironment);
+      this.sceneAnimationId = requestAnimationFrame(this.renderScene);
+    } catch (cause) {
+      this.error.set(`Visual environment: ${this.errorMessage(cause)}`);
+    }
+  }
+
+  toggleDebug(): void {
+    this.debugVisible.update((visible) => !visible);
+  }
+
+  private readonly resizeEnvironment = (): void => {
+    this.environment?.resize(window.innerWidth, window.innerHeight);
+  };
+
+  private readonly renderScene = (time: number): void => {
+    this.sceneAnimationId = requestAnimationFrame(this.renderScene);
+    if (this.lastSceneFrame && time - this.lastSceneFrame < 1000 / 30) return;
+    const deltaTime = this.lastSceneFrame ? Math.min(0.08, (time - this.lastSceneFrame) / 1000) : 1 / 30;
+    this.lastSceneFrame = time;
+    this.environment?.update(this.frame(), deltaTime);
+    this.renderedFrames++;
+    if (time - this.fpsWindowStart >= 1000) {
+      this.fps.set(Math.round(this.renderedFrames * 1000 / (time - this.fpsWindowStart)));
+      this.renderedFrames = 0;
+      this.fpsWindowStart = time;
+    }
+  };
 
   onAudioSessionModeChange(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
@@ -133,7 +168,7 @@ export class App implements OnDestroy {
       this.updateAudioSessionDiagnostic();
       this.resetAnalysis();
       this.status.set('listening');
-      this.message.set('Listening. Play music through this iPhone’s built-in speakers.');
+      this.message.set('Listening to the room.');
       this.animationId = requestAnimationFrame(this.analyze);
     } catch (cause) {
       if (this.destroyed || token !== this.startToken) return;
@@ -148,12 +183,18 @@ export class App implements OnDestroy {
     ++this.startToken;
     this.releaseAudio();
     this.status.set('stopped');
-    this.message.set('Stopped. Tap Start Listening to test again.');
+    this.message.set('The rain is still here. Start Vibe to listen again.');
     this.error.set('');
   }
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    if (this.sceneAnimationId !== null) cancelAnimationFrame(this.sceneAnimationId);
+    this.sceneAnimationId = null;
+    window.removeEventListener('resize', this.resizeEnvironment);
+    window.visualViewport?.removeEventListener('resize', this.resizeEnvironment);
+    this.environment?.stop();
+    this.environment = null;
     ++this.startToken;
     this.releaseAudio();
   }
@@ -205,11 +246,13 @@ export class App implements OnDestroy {
       const alpha = 1 - Math.exp(-elapsed / (nextValue > oldValue ? 0.07 : 0.2));
       return oldValue + (nextValue - oldValue) * alpha;
     };
+    const energyTarget = clamp01(rawVolume * 0.55 + rawBass * 0.2 + rawMid * 0.2 + rawHigh * 0.05);
     this.frame.set({
       volume: smooth(previous.volume, rawVolume),
       bass: smooth(previous.bass, rawBass),
       mid: smooth(previous.mid, rawMid),
       high: smooth(previous.high, rawHigh),
+      energy: previous.energy + (energyTarget - previous.energy) * (1 - Math.exp(-elapsed / (energyTarget > previous.energy ? 0.45 : 1.15))),
       beat: time < this.beatUntil,
       beatStrength: this.peakBeatStrength * Math.max(0, 1 - (time - this.lastBeatTime) / 380),
     });
@@ -273,7 +316,7 @@ export class App implements OnDestroy {
   }
 
   private resetAnalysis(): void {
-    this.frame.set(EMPTY_FRAME);
+    this.frame.set(EMPTY_AUDIO_FRAME);
     this.lastFrameTime = 0;
     this.lastDiagnosticTime = 0;
     this.baselineBass = 0;

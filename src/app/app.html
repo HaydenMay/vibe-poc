@@ -1,12 +1,21 @@
-<main class="page">
-  <div class="glow" [style.transform]="'translate(-50%, -50%) scale(' + (1 + frame().volume * 0.8 + frame().bass * 0.35 + frame().beatStrength * 0.3) + ')'" [style.opacity]="0.2 + frame().volume * 0.5 + frame().beatStrength * 0.2" aria-hidden="true"></div>
-  <div class="content">
-    <header>
-      <p class="eyebrow">SAME-IPHONE AUDIO TEST</p>
-      <h1>Vibe POC</h1>
-      <p class="status" role="status">{{ message() }}</p>
-    </header>
-    @if (status() !== 'listening') {
+<main class="environment">
+  <canvas #sceneCanvas class="scene-canvas" aria-hidden="true"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <header class="masthead" aria-label="Vibe, Neon Rain">
+    <span class="brand">VIBE<span class="brand-dot">.</span></span>
+    <span class="edition">ENVIRONMENT 001 <span class="edition-line"></span> NEON RAIN</span>
+  </header>
+
+  <button class="debug-toggle" type="button" (click)="toggleDebug()" [attr.aria-pressed]="debugVisible()">
+    {{ debugVisible() ? 'Hide debug' : 'Debug' }}
+  </button>
+
+  @if (status() !== 'listening') {
+    <section class="welcome" aria-labelledby="scene-title">
+      <p class="chapter">AFTER DARK / ALWAYS MOVING</p>
+      <h1 id="scene-title">Neon <em>Rain</em></h1>
+      <p class="description">A city at night, breathing with the sound around you.</p>
       <label class="session-control" for="audio-session-mode">
         <span>Audio Session</span>
         <select id="audio-session-mode" [value]="requestedAudioSessionMode()" (change)="onAudioSessionModeChange($event)" [disabled]="!audioSessionAvailable() || status() === 'requesting'">
@@ -14,27 +23,31 @@
           <option value="play-and-record">Play &amp; Record</option>
         </select>
       </label>
-      <button class="primary" type="button" (click)="startListening()" [disabled]="status() === 'requesting'">
-        {{ status() === 'requesting' ? 'Requesting microphone…' : 'Start Listening' }}
+      <button class="start-button" type="button" (click)="startListening()" [disabled]="status() === 'requesting'">
+        <span>{{ status() === 'requesting' ? 'Opening microphone…' : 'Start Vibe' }}</span>
+        <span aria-hidden="true">↗</span>
       </button>
-    } @else {
-      <section class="visuals" aria-label="Live audio levels">
-        <div class="beat" [class.active]="frame().beat" [style.--strength]="frame().beatStrength">
-          <span>{{ frame().beat ? 'BEAT' : 'LISTENING' }}</span>
-        </div>
-        <div class="meters">
-          <div class="meter"><div class="meter-label"><span>Volume</span><span>{{ (frame().volume * 100).toFixed(0) }}%</span></div><div class="bar"><div [style.width.%]="frame().volume * 100"></div></div></div>
-          <div class="meter"><div class="meter-label"><span>Bass</span><span>{{ (frame().bass * 100).toFixed(0) }}%</span></div><div class="bar"><div [style.width.%]="frame().bass * 100"></div></div></div>
-          <div class="meter"><div class="meter-label"><span>Mid</span><span>{{ (frame().mid * 100).toFixed(0) }}%</span></div><div class="bar"><div [style.width.%]="frame().mid * 100"></div></div></div>
-          <div class="meter"><div class="meter-label"><span>High / Treble</span><span>{{ (frame().high * 100).toFixed(0) }}%</span></div><div class="bar"><div [style.width.%]="frame().high * 100"></div></div></div>
-        </div>
-      </section>
-      <button class="secondary" type="button" (click)="stopListening()">Stop Listening</button>
-    }
-    <section class="diagnostics" aria-label="Diagnostics">
-      <h2>Diagnostics</h2>
+      <p class="hint">Play music through an external speaker. Vibe listens through your microphone.</p>
+      @if (error()) { <p class="visible-error" role="alert">{{ error() }}</p> }
+    </section>
+  } @else {
+    <div class="live-label"><span class="live-dot" aria-hidden="true"></span><span>LISTENING TO THE ROOM</span></div>
+    <button class="stop-button" type="button" (click)="stopListening()">Stop</button>
+  }
+
+  @if (debugVisible()) {
+    <aside class="debug-panel" aria-label="Audio debug information">
+      <div class="debug-header"><span>LIVE AUDIO</span><span>{{ fps() }} FPS</span></div>
+      <div class="debug-meters">
+        <div class="debug-meter"><div><span>Volume</span><span>{{ (frame().volume * 100).toFixed(0) }}%</span></div><b><i [style.width.%]="frame().volume * 100"></i></b></div>
+        <div class="debug-meter"><div><span>Bass</span><span>{{ (frame().bass * 100).toFixed(0) }}%</span></div><b><i [style.width.%]="frame().bass * 100"></i></b></div>
+        <div class="debug-meter"><div><span>Mid</span><span>{{ (frame().mid * 100).toFixed(0) }}%</span></div><b><i [style.width.%]="frame().mid * 100"></i></b></div>
+        <div class="debug-meter"><div><span>High</span><span>{{ (frame().high * 100).toFixed(0) }}%</span></div><b><i [style.width.%]="frame().high * 100"></i></b></div>
+        <div class="debug-meter"><div><span>Energy</span><span>{{ (frame().energy * 100).toFixed(0) }}%</span></div><b><i [style.width.%]="frame().energy * 100"></i></b></div>
+      </div>
       <dl>
-        <div><dt>Capture</dt><dd>{{ status() }} · track {{ trackState() }}</dd></div>
+        <div><dt>Beat</dt><dd>{{ frame().beat ? 'yes' : 'no' }} · {{ (frame().beatStrength * 100).toFixed(0) }}%</dd></div>
+        <div><dt>Capture</dt><dd>{{ status() }} · {{ trackState() }}</dd></div>
         <div><dt>AudioContext</dt><dd>{{ contextState() }}</dd></div>
         <div><dt>Sample rate</dt><dd>{{ sampleRate() === null ? '—' : sampleRate() + ' Hz' }}</dd></div>
         <div><dt>Requested mode</dt><dd>{{ requestedAudioSessionMode() }}</dd></div>
@@ -43,14 +56,14 @@
         <div><dt>Set result</dt><dd>{{ sessionSetResult() }}</dd></div>
         <div><dt>Restore result</dt><dd>{{ sessionRestoreResult() }}</dd></div>
       </dl>
-      @if (sessionSetError()) { <p class="error">Set error: {{ sessionSetError() }}</p> }
-      @if (sessionRestoreError()) { <p class="error">Restore error: {{ sessionRestoreError() }}</p> }
-      @if (sessionReadError()) { <p class="error">Read error: {{ sessionReadError() }}</p> }
+      @if (sessionSetError()) { <p class="debug-error">Set error: {{ sessionSetError() }}</p> }
+      @if (sessionRestoreError()) { <p class="debug-error">Restore error: {{ sessionRestoreError() }}</p> }
+      @if (sessionReadError()) { <p class="debug-error">Read error: {{ sessionReadError() }}</p> }
+      @if (error()) { <p class="debug-error">{{ error() }}</p> }
       <details>
         <summary>Actual microphone track settings</summary>
         <pre>{{ trackSettings() }}</pre>
       </details>
-      @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
-    </section>
-  </div>
+    </aside>
+  }
 </main>
