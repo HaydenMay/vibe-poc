@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "tmp/scene-test",
+    "rootDir": "src"
+  },
+  "files": [
+    "src/app/audio-reactive-frame.ts",
+    "src/app/vibe-environment.ts",
+    "src/app/neon-rain.environment.ts",
+    "src/app/neon-rain-audio-response.ts",
+    "src/app/neon-rain-ambient-events.ts",
+    "src/app/chromatic-drift-audio-response.ts",
+    "src/app/chromatic-drift.environment.ts",
+    "src/app/vibe-scenes.ts"
+  ]
+}

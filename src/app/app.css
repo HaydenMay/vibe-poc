@@ -1,7 +1,8 @@
-:host { display: block; min-height: 100dvh; }
-.environment { position: relative; display: flex; flex-direction: column; min-height: 100dvh; overflow: hidden; color: #edf4ff; background: #030711; }
-.scene-canvas, .vignette { position: fixed; inset: 0; width: 100%; height: 100dvh; pointer-events: none; }
-.scene-canvas { display: block; }
+:host { display: block; }
+.environment { position: relative; display: flex; flex-direction: column; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; color: #edf4ff; background: #030711; }
+.environment.chromatic-drift { background: #000; }
+.environment.chromatic-drift .vignette { background: none; }
+.scene-canvas, .vignette { position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; pointer-events: none; }
 .vignette { background: radial-gradient(ellipse at 50% 49%, transparent 26%, rgba(1,4,12,.5) 100%), linear-gradient(180deg, rgba(1,4,12,.13) 0%, transparent 48%, rgba(1,4,12,.46) 100%); }
 .masthead { position: relative; z-index: 2; display: flex; flex-direction: column; gap: 4px; align-self: flex-start; padding: calc(env(safe-area-inset-top) + 21px) 23px 0; }
 .brand { font-size: 17px; font-weight: 800; line-height: 1; letter-spacing: .18em; }
@@ -27,7 +28,9 @@ h1 em { display: block; color: #d9ddfa; font-style: normal; font-weight: 300; }
 .live-label { position: absolute; z-index: 2; left: 23px; bottom: calc(env(safe-area-inset-bottom) + 33px); display: flex; align-items: center; gap: 8px; color: #d0dfe8; font-size: 9px; font-weight: 700; letter-spacing: .15em; }
 .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #90e8df; box-shadow: 0 0 10px #90e8df; }
 .stop-button { position: absolute; z-index: 2; right: 21px; bottom: calc(env(safe-area-inset-bottom) + 22px); min-height: 34px; padding: 0 16px; border: 1px solid rgba(213,235,250,.45); border-radius: 999px; background: rgba(5,14,27,.7); color: #e3eef6; font-size: 12px; }
-.debug-panel { position: absolute; z-index: 4; top: calc(env(safe-area-inset-top) + 65px); right: 15px; width: min(310px, calc(100vw - 30px)); max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 138px); overflow: auto; box-sizing: border-box; padding: 15px; border: 1px solid rgba(162,205,232,.26); border-radius: 12px; background: rgba(4,11,23,.94); box-shadow: 0 14px 50px #0008; color: #e2eef8; font-size: 11px; }
+.scene-picker { position: absolute; z-index: 3; right: 21px; bottom: calc(env(safe-area-inset-bottom) + 72px); display: flex; align-items: center; gap: 10px; min-height: 42px; box-sizing: border-box; padding: 4px 8px 4px 12px; border: 1px solid rgba(178,215,237,.3); border-radius: 999px; background: rgba(5,14,27,.78); color: #a9c2d2; font-size: 9px; font-weight: 750; letter-spacing: .13em; }
+.scene-picker select { min-height: 32px; padding: 0 26px 0 11px; border: 1px solid rgba(191,225,243,.2); border-radius: 999px; background: #102031; color: #e4f1f8; font-size: 11px; font-weight: 650; letter-spacing: 0; }
+.debug-panel { position: absolute; z-index: 4; top: calc(env(safe-area-inset-top) + 65px); right: 15px; width: min(310px, calc(100vw - 30px)); max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 190px); overflow: auto; box-sizing: border-box; padding: 15px; border: 1px solid rgba(162,205,232,.26); border-radius: 12px; background: rgba(4,11,23,.94); box-shadow: 0 14px 50px #0008; color: #e2eef8; font-size: 11px; }
 .debug-header { display: flex; justify-content: space-between; padding-bottom: 11px; border-bottom: 1px solid #ffffff23; color: #b7d6e6; font-size: 10px; font-weight: 800; letter-spacing: .14em; }
 .debug-meters { display: grid; gap: 9px; margin: 14px 0; }
 .debug-meter > div { display: flex; justify-content: space-between; margin-bottom: 4px; }
@@ -42,3 +45,5 @@ h1 em { display: block; color: #d9ddfa; font-style: normal; font-weight: 300; }
 .debug-panel pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 10px; }
 .debug-error { color: #ffc1ce; overflow-wrap: anywhere; }
 @media (max-height: 690px) { .welcome { padding-bottom: calc(env(safe-area-inset-bottom) + 24px); } h1 { font-size: 61px; } .description { margin: 10px 0 15px; } .hint { margin-top: 8px; } }
+@media (max-width: 620px) { .welcome { padding-bottom: calc(env(safe-area-inset-bottom) + 126px); } }
+@media (max-width: 620px) and (max-height: 520px) { .welcome { padding-bottom: calc(env(safe-area-inset-bottom) + 112px); } .chapter, .description, .hint { display: none; } h1 { margin-bottom: 8px; font-size: 44px; } .scene-picker { bottom: calc(env(safe-area-inset-bottom) + 62px); } }

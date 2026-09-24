@@ -9,6 +9,7 @@
     "build:lively": "ng build --configuration production,lively && node scripts/package-lively.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "test:scene": "tsc -p tsconfig.scene-test.json && node scripts/test-neon-rain-response.cjs && node scripts/test-chromatic-drift.cjs",
     "test:lively": "tsc -p tsconfig.lively-test.json && node scripts/test-lively-audio.cjs"
   },
   "prettier": {

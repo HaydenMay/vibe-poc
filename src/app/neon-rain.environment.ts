@@ -1,11 +1,15 @@
 import { AudioReactiveFrame } from './audio-reactive-frame';
+import { NeonRainAmbientEventFrame, NeonRainAmbientEvents } from './neon-rain-ambient-events';
+import { NeonRainAudioResponse, NeonRainAudioResponseFrame } from './neon-rain-audio-response';
 import { VibeEnvironment } from './vibe-environment';
 
-type Drop = { x: number; y: number; depth: number; length: number; speed: number };
-type Mote = { x: number; y: number; size: number; phase: number };
+type Drop = { x: number; y: number; depth: number; length: number; speed: number; phase: number; layer: number };
+type Mote = { x: number; y: number; size: number; phase: number; depth: number; drift: number; rise: number };
 type Building = { x: number; width: number; top: number; near: boolean };
+type WindowLight = { x: number; y: number; phase: number; pink: boolean; baseAlpha: number };
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+const FOG_LAYER_SPEEDS = [0.62, 0.91, 1.22] as const;
 
 export class NeonRainEnvironment implements VibeEnvironment {
   private readonly context: CanvasRenderingContext2D;
@@ -13,16 +17,14 @@ export class NeonRainEnvironment implements VibeEnvironment {
   private readonly drops: Drop[] = [];
   private readonly motes: Mote[] = [];
   private readonly buildings: Building[] = [];
+  private readonly windowLights: WindowLight[] = [];
+  private readonly audioResponse = new NeonRainAudioResponse();
+  private readonly ambientEvents: NeonRainAmbientEvents;
   private width = 1;
   private height = 1;
   private horizon = 1;
   private pixelRatio = 1;
   private time = 0;
-  private bassGlow = 0;
-  private motion = 0;
-  private energy = 0;
-  private beatAccent = 0;
-  private beatWasActive = false;
   private active = false;
   private seed = 98127;
 
@@ -30,6 +32,7 @@ export class NeonRainEnvironment implements VibeEnvironment {
     const context = canvas.getContext('2d', { alpha: false });
     if (!context) throw new Error('Canvas 2D is unavailable.');
     this.context = context;
+    this.ambientEvents = new NeonRainAmbientEvents(() => this.random());
   }
 
   start(): void {
@@ -41,6 +44,7 @@ export class NeonRainEnvironment implements VibeEnvironment {
     this.drops.length = 0;
     this.motes.length = 0;
     this.buildings.length = 0;
+    this.windowLights.length = 0;
     this.canvas.width = 0;
     this.canvas.height = 0;
     this.backdrop.width = 0;
@@ -62,20 +66,15 @@ export class NeonRainEnvironment implements VibeEnvironment {
     this.createBuildings();
     this.createWeather();
     this.paintBackdrop();
+    this.ambientEvents.reset();
   }
 
   update(frame: AudioReactiveFrame, deltaTime: number): void {
     if (!this.active) return;
     const dt = Math.min(0.08, Math.max(0, deltaTime));
     this.time += dt;
-    this.energy += (frame.energy - this.energy) * Math.min(1, dt * 1.7);
-    this.bassGlow += (frame.bass - this.bassGlow) * Math.min(1, dt * 2.3);
-    this.motion += (frame.mid - this.motion) * Math.min(1, dt * 1.2);
-    if (frame.beat && !this.beatWasActive) {
-      this.beatAccent = Math.max(this.beatAccent, 0.35 + frame.beatStrength * 0.65);
-    }
-    this.beatWasActive = frame.beat;
-    this.beatAccent *= Math.exp(-dt * 7);
+    const response = this.audioResponse.update(frame, dt);
+    const ambientEvent = this.ambientEvents.update(dt);
 
     const ctx = this.context;
     const w = this.width;
@@ -83,13 +82,15 @@ export class NeonRainEnvironment implements VibeEnvironment {
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.drawImage(this.backdrop, 0, 0, w, h);
-    this.drawDistantLights(frame);
-    this.drawFog();
+    this.drawDistantLights(response, ambientEvent);
+    this.drawWindowLights(response, ambientEvent);
+    this.drawFog(response, ambientEvent);
     this.drawNearArchitecture();
-    this.drawNeonSigns();
-    this.drawReflections();
-    this.drawRain(frame, dt);
-    this.drawMotes(frame);
+    this.drawNeonSigns(response, ambientEvent);
+    this.drawReflections(response);
+    this.drawBeatRipple(response);
+    this.drawRain(response, ambientEvent, dt);
+    this.drawMotes(response, dt);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -117,21 +118,28 @@ export class NeonRainEnvironment implements VibeEnvironment {
     this.motes.length = 0;
     const dropCount = Math.min(165, Math.max(75, Math.round(this.width * this.height / 3600)));
     for (let i = 0; i < dropCount; i++) {
-      const depth = this.random();
+      const layer = i % 3;
+      const depth = (layer + 0.15 + this.random() * 0.7) / 3;
       this.drops.push({
         x: this.random() * this.width,
         y: this.random() * this.height,
         depth,
-        length: 5 + depth * 15,
-        speed: 85 + depth * 270,
+        length: 3 + depth * 18,
+        speed: 55 + depth * 210 + layer * 14,
+        phase: this.random() * Math.PI * 2,
+        layer,
       });
     }
     for (let i = 0; i < 26; i++) {
+      const depth = this.random();
       this.motes.push({
         x: this.random() * this.width,
-        y: this.random() * this.horizon,
-        size: 0.5 + this.random() * 1.4,
+        y: this.random() * this.height * 0.86,
+        size: 0.45 + depth * 1.45,
         phase: this.random() * Math.PI * 2,
+        depth,
+        drift: (this.random() * 2 - 1) * (2 + depth * 7),
+        rise: 2 + depth * 7,
       });
     }
   }
@@ -139,6 +147,7 @@ export class NeonRainEnvironment implements VibeEnvironment {
   private paintBackdrop(): void {
     const ctx = this.backdrop.getContext('2d');
     if (!ctx) return;
+    this.windowLights.length = 0;
     ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
     const w = this.width;
     const h = this.height;
@@ -166,8 +175,19 @@ export class NeonRainEnvironment implements VibeEnvironment {
       for (let wx = building.x + 5; wx < building.x + building.width - 2; wx += 8) {
         for (let wy = building.top + 9; wy < this.horizon - 5; wy += 11) {
           if (this.random() > 0.72) {
-            ctx.fillStyle = this.random() > 0.76 ? 'rgba(239,140,183,0.26)' : 'rgba(130,183,205,0.21)';
+            const pink = this.random() > 0.76;
+            const baseAlpha = pink ? 0.26 : 0.21;
+            ctx.fillStyle = pink ? 'rgba(239,140,183,0.26)' : 'rgba(130,183,205,0.21)';
             ctx.fillRect(wx, wy, 2, 3);
+            if (this.random() > 0.87) {
+              this.windowLights.push({
+                x: wx,
+                y: wy,
+                pink,
+                baseAlpha,
+                phase: this.random() * Math.PI * 2,
+              });
+            }
           }
         }
       }
@@ -192,14 +212,59 @@ export class NeonRainEnvironment implements VibeEnvironment {
     ctx.stroke();
   }
 
-  private drawDistantLights(frame: AudioReactiveFrame): void {
+  private drawDistantLights(
+    response: NeonRainAudioResponseFrame,
+    event: NeonRainAmbientEventFrame,
+  ): void {
     const ctx = this.context;
-    const light = 0.28 + this.bassGlow * 0.33 + this.energy * 0.13 + this.beatAccent * 0.12;
-    this.softLight(this.width * 0.19, this.height * 0.43, this.width * 0.36, `rgba(235,65,146,${light})`);
-    this.softLight(this.width * 0.73, this.height * 0.48, this.width * 0.43, `rgba(46,189,224,${light * 0.86})`);
-    this.softLight(this.width * 0.5, this.horizon - 10, this.width * 0.32, `rgba(139,109,238,${0.13 + this.bassGlow * 0.19})`);
-    ctx.fillStyle = `rgba(111,169,201,${0.08 + frame.energy * 0.09})`;
+    const ambientCycle = 0.5 + 0.5 * Math.sin(this.time * 0.18);
+    const light = 0.23 + ambientCycle * 0.035 + response.cityLight * 0.24 + response.beatPulse * 0.07;
+    const bloomTarget = Math.min(2, Math.floor(event.target * 3));
+    const bloom = event.type === 'light-bloom' ? event.strength * 0.14 : 0;
+    this.softLight(
+      this.width * 0.19,
+      this.height * 0.43,
+      this.width * 0.36,
+      `rgba(235,65,146,${light + (bloomTarget === 0 ? bloom : 0)})`,
+    );
+    this.softLight(
+      this.width * 0.73,
+      this.height * 0.48,
+      this.width * 0.43,
+      `rgba(46,189,224,${light * 0.86 + (bloomTarget === 1 ? bloom : 0)})`,
+    );
+    this.softLight(
+      this.width * 0.5,
+      this.horizon - 10,
+      this.width * 0.32,
+      `rgba(139,109,238,${0.12 + response.cityLight * 0.13 + (bloomTarget === 2 ? bloom : 0)})`,
+    );
+    ctx.fillStyle = `rgba(111,169,201,${0.08 + response.cityLight * 0.07 + response.beatPulse * 0.035})`;
     ctx.fillRect(0, this.horizon - 1, this.width, 2);
+  }
+
+  private drawWindowLights(
+    response: NeonRainAudioResponseFrame,
+    event: NeonRainAmbientEventFrame,
+  ): void {
+    const ctx = this.context;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    const eventGroup = Math.min(3, Math.floor(event.target * 4));
+    for (const windowLight of this.windowLights) {
+      const midVariation =
+        (0.5 + 0.5 * Math.sin(this.time * 1.4 + windowLight.phase)) * response.midMotion * 0.16;
+      const windowGroup = Math.min(3, Math.floor((windowLight.x / this.width) * 4));
+      const eventVariation = event.type === 'window-shift' && windowGroup === eventGroup
+        ? event.strength * 0.16
+        : 0;
+      const alpha = clamp01(windowLight.baseAlpha + response.cityLight * 0.2 + midVariation + eventVariation);
+      ctx.fillStyle = windowLight.pink
+        ? `rgba(239,140,183,${alpha})`
+        : `rgba(130,183,205,${alpha})`;
+      ctx.fillRect(windowLight.x, windowLight.y, 2, 3);
+    }
+    ctx.restore();
   }
 
   private softLight(x: number, y: number, radius: number, color: string): void {
@@ -213,15 +278,24 @@ export class NeonRainEnvironment implements VibeEnvironment {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  private drawFog(): void {
+  private drawFog(
+    response: NeonRainAudioResponseFrame,
+    event: NeonRainAmbientEventFrame,
+  ): void {
     const ctx = this.context;
-    const drift = this.time * (3 + this.motion * 15);
     for (let i = 0; i < 3; i++) {
-      const x = this.width * (0.18 + i * 0.34) + Math.sin(drift * 0.22 + i * 2.1) * 38;
-      const y = this.horizon - 28 + i * 10;
-      const radius = this.width * (0.42 + i * 0.07);
+      const driftSpeed = (2.2 + response.midMotion * 18 + response.energyMotion * 6) * FOG_LAYER_SPEEDS[i];
+      const drift = this.time * driftSpeed;
+      const sweepLayer = Math.min(2, Math.floor(event.target * 3));
+      const sweep = event.type === 'haze-sweep' && sweepLayer === i
+        ? (event.target < 0.5 ? -1 : 1) * event.strength * this.width * 0.05
+        : 0;
+      const x = this.width * (0.18 + i * 0.34) + Math.sin(drift * 0.22 + i * 2.1) * (27 + i * 9) + sweep;
+      const verticalDrift = Math.sin(this.time * (0.12 + i * 0.025) + i * 1.9) * (2 + i * 1.5);
+      const y = this.horizon - 28 + i * 10 + verticalDrift;
+      const radius = this.width * (0.38 + i * 0.07);
       const fog = ctx.createRadialGradient(x, y, 4, x, y, radius);
-      fog.addColorStop(0, `rgba(110,151,183,${0.08 + this.motion * 0.07})`);
+      fog.addColorStop(0, `rgba(110,151,183,${0.08 + response.midMotion * 0.035 + response.energyMotion * 0.02})`);
       fog.addColorStop(1, 'rgba(27,43,65,0)');
       ctx.fillStyle = fog;
       ctx.fillRect(x - radius, y - radius * 0.43, radius * 2, radius * 0.86);
@@ -246,14 +320,25 @@ export class NeonRainEnvironment implements VibeEnvironment {
     }
   }
 
-  private drawNeonSigns(): void {
+  private drawNeonSigns(
+    response: NeonRainAudioResponseFrame,
+    event: NeonRainAmbientEventFrame,
+  ): void {
     const ctx = this.context;
-    const flicker = 0.77 + Math.sin(this.time * 1.9) * 0.05 + this.beatAccent * 0.18;
+    const leftEvent = event.type === 'sign-flicker' && event.target < 0.5 ? event.strength : 0;
+    const rightEvent = event.type === 'sign-flicker' && event.target >= 0.5 ? event.strength : 0;
+    const shimmer = Math.sin(this.time * 0.64) * 0.035;
+    const leftFlicker = clamp01(
+      0.73 + shimmer + response.cityLight * 0.14 + response.beatPulse * 0.16 + leftEvent * 0.12,
+    );
+    const rightFlicker = clamp01(
+      0.66 + shimmer + response.cityLight * 0.14 + response.beatPulse * 0.12 + rightEvent * 0.12,
+    );
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
-    ctx.shadowBlur = 13 + this.bassGlow * 18 + this.beatAccent * 13;
+    ctx.shadowBlur = 13 + response.cityLight * 14 + response.beatPulse * 13 + leftEvent * 6;
     ctx.lineWidth = 2;
-    ctx.strokeStyle = `rgba(255,98,168,${flicker})`;
+    ctx.strokeStyle = `rgba(255,98,168,${leftFlicker})`;
     const lx = this.width * 0.11;
     const ly = this.height * 0.37;
     ctx.strokeRect(lx, ly, this.width * 0.12, this.height * 0.075);
@@ -263,8 +348,8 @@ export class NeonRainEnvironment implements VibeEnvironment {
     ctx.moveTo(lx + 7, ly + 23);
     ctx.lineTo(lx + this.width * 0.12 - 12, ly + 23);
     ctx.stroke();
-    ctx.shadowBlur = 11 + this.bassGlow * 15;
-    ctx.strokeStyle = `rgba(73,220,237,${0.66 + this.beatAccent * 0.22})`;
+    ctx.shadowBlur = 11 + response.cityLight * 12 + response.beatPulse * 8 + rightEvent * 6;
+    ctx.strokeStyle = `rgba(73,220,237,${rightFlicker})`;
     const rx = this.width * 0.74;
     const ry = this.height * 0.31;
     ctx.strokeRect(rx, ry, this.width * 0.15, this.height * 0.055);
@@ -277,10 +362,11 @@ export class NeonRainEnvironment implements VibeEnvironment {
     ctx.restore();
   }
 
-  private drawReflections(): void {
+  private drawReflections(response: NeonRainAudioResponseFrame): void {
     const ctx = this.context;
     const ground = this.horizon + 5;
-    const intensity = 0.15 + this.bassGlow * 0.25 + this.beatAccent * 0.14;
+    const bass = response.bassReflection;
+    const intensity = 0.11 + bass * 0.33 + response.beatPulse * 0.15;
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     for (let lane = 0; lane < 2; lane++) {
@@ -289,51 +375,98 @@ export class NeonRainEnvironment implements VibeEnvironment {
       for (let i = 0; i < 30; i++) {
         const depth = (i + 1) / 30;
         const y = ground + depth * depth * (this.height - ground);
-        const width = (2 + depth * this.width * 0.16) * (0.55 + 0.45 * Math.sin(i * 4.2 + this.time * 1.5));
-        const shimmer = Math.sin(this.time * 1.3 + i * 1.4) * (1 + depth * 4);
-        ctx.lineWidth = 1 + depth * 2;
+        const width =
+          (2 + depth * this.width * 0.16) *
+          (0.55 + 0.45 * Math.sin(i * 4.2 + this.time * 0.55)) *
+          (1 + bass * 0.62);
+        const shimmer = Math.sin(this.time * 0.28 + i * 1.4) * (1 + depth * (4 + bass * 5));
+        ctx.globalAlpha = 0.38 + depth * 0.62;
+        ctx.lineWidth = 1 + depth * (2 + bass * 1.1);
         ctx.beginPath();
         ctx.moveTo(baseX - width / 2 + shimmer, y);
         ctx.lineTo(baseX + width / 2 + shimmer, y);
         ctx.stroke();
       }
     }
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
-  private drawRain(frame: AudioReactiveFrame, dt: number): void {
+  private drawBeatRipple(response: NeonRainAudioResponseFrame): void {
+    const strength = response.beatPulse;
+    if (strength <= 0.01 || response.beatProgress >= 1) return;
+
     const ctx = this.context;
-    const wind = 8 + this.motion * 26;
-    const brightFraction = 0.1 + frame.high * 0.35 + this.energy * 0.12;
+    const progress = response.beatProgress;
+    const y = this.horizon + 8 + Math.pow(progress, 1.25) * (this.height - this.horizon - 8);
+    const roadWidth = this.width * (0.06 + progress * 1.1);
+    const radiusX = roadWidth * (0.12 + progress * 0.11);
+    const radiusY = 2 + progress * 7;
+    const alpha = clamp01(strength * (0.28 + (1 - progress) * 0.72) * 0.62);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.strokeStyle = `rgba(145,229,241,${alpha})`;
+    ctx.lineWidth = 1.4 + strength * 1.4;
+    ctx.beginPath();
+    ctx.ellipse(this.width * 0.5, y, radiusX, radiusY, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(238,112,177,${alpha * 0.42})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(this.width * 0.5, y, radiusX * 1.22, radiusY * 1.35, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawRain(
+    response: NeonRainAudioResponseFrame,
+    event: NeonRainAmbientEventFrame,
+    dt: number,
+  ): void {
+    const ctx = this.context;
+    const wind = 6 + response.energyMotion * 42;
+    const brightFraction = 0.035 + response.highDetail * 0.45;
+    const eventDrop = Math.min(this.drops.length - 1, Math.floor(event.target * this.drops.length));
     for (let i = 0; i < this.drops.length; i++) {
       const drop = this.drops[i];
-      drop.y += (drop.speed + this.energy * 145) * dt;
-      drop.x += wind * (0.2 + drop.depth) * dt;
-      if (drop.y > this.height + drop.length) {
-        drop.y = -drop.length;
+      drop.y += (drop.speed + response.energyMotion * 190) * dt;
+      drop.x += (wind * (0.12 + drop.depth) + (drop.layer - 1) * 2.4) * dt;
+      const streakLength = drop.length * (0.92 + response.energyMotion * 0.18);
+      if (drop.y > this.height + streakLength) {
+        drop.y = -streakLength;
         drop.x = this.random() * this.width;
       }
       if (drop.x > this.width + 4) drop.x = -4;
-      const highlighted = (i % 17) / 17 < brightFraction;
+      if (drop.x < -4) drop.x = this.width + 4;
+      const twinkle = 0.5 + 0.5 * Math.sin(this.time * (2.1 + response.highDetail * 2.2) + drop.phase);
+      const eventGlint = event.type === 'rain-glint' && i === eventDrop ? event.strength : 0;
+      const highlighted = ((i % 19) / 19 < brightFraction && twinkle > 0.72) || eventGlint > 0.12;
       ctx.strokeStyle = highlighted
-        ? `rgba(170,228,247,${0.22 + frame.high * 0.22})`
-        : `rgba(148,178,209,${0.07 + drop.depth * 0.13})`;
-      ctx.lineWidth = drop.depth > 0.75 ? 1.1 : 0.65;
+        ? `rgba(170,228,247,${clamp01(0.18 + response.highDetail * 0.28 + eventGlint * 0.34)})`
+        : `rgba(148,178,209,${0.045 + drop.depth * 0.14})`;
+      ctx.lineWidth = 0.4 + drop.depth * 0.8 + response.highDetail * 0.14;
       ctx.beginPath();
       ctx.moveTo(drop.x, drop.y);
-      ctx.lineTo(drop.x + 2 + drop.depth * 2, drop.y + drop.length);
+      ctx.lineTo(drop.x + 1 + drop.depth * 3, drop.y + streakLength);
       ctx.stroke();
     }
   }
 
-  private drawMotes(frame: AudioReactiveFrame): void {
+  private drawMotes(response: NeonRainAudioResponseFrame, dt: number): void {
     const ctx = this.context;
     for (const mote of this.motes) {
-      const twinkle = Math.max(0, Math.sin(this.time * (0.7 + frame.high * 1.5) + mote.phase));
-      const alpha = 0.09 + twinkle * (0.12 + frame.high * 0.28);
+      mote.x += (mote.drift + response.energyMotion * 10) * dt;
+      mote.y -= (mote.rise + response.energyMotion * 8) * dt;
+      if (mote.x > this.width + 6) mote.x = -6;
+      else if (mote.x < -6) mote.x = this.width + 6;
+      if (mote.y < -4) mote.y = this.height * 0.86;
+
+      const twinkle = Math.max(0, Math.sin(this.time * (0.42 + response.highDetail * 0.95) + mote.phase));
+      const alpha = clamp01(0.035 + mote.depth * 0.025 + twinkle * (0.08 + response.highDetail * 0.22));
       ctx.fillStyle = `rgba(193,228,242,${clamp01(alpha)})`;
       ctx.beginPath();
-      ctx.arc(mote.x + Math.sin(this.time * 0.2 + mote.phase) * 5, mote.y, mote.size, 0, Math.PI * 2);
+      ctx.arc(mote.x, mote.y, mote.size * (1 + response.highDetail * 0.16), 0, Math.PI * 2);
       ctx.fill();
     }
   }

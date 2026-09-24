@@ -1,10 +1,10 @@
-<main class="environment">
+<main class="environment" [class.chromatic-drift]="selectedScene() === 'chromatic-drift'">
   <canvas #sceneCanvas class="scene-canvas" aria-hidden="true"></canvas>
   <div class="vignette" aria-hidden="true"></div>
 
-  <header class="masthead" aria-label="Vibe, Neon Rain">
+  <header class="masthead" [attr.aria-label]="'Vibe, ' + selectedSceneInfo().label">
     <span class="brand">VIBE<span class="brand-dot">.</span></span>
-    <span class="edition">ENVIRONMENT 001 <span class="edition-line"></span> NEON RAIN</span>
+    <span class="edition">ENVIRONMENT {{ selectedSceneInfo().edition }} <span class="edition-line"></span> {{ selectedSceneInfo().label.toUpperCase() }}</span>
   </header>
 
   <button class="debug-toggle" type="button" (click)="toggleDebug()" [attr.aria-pressed]="debugVisible()">
@@ -14,8 +14,12 @@
   @if (!isLivelyBuild && status() !== 'listening') {
     <section class="welcome" aria-labelledby="scene-title">
       <p class="chapter">AFTER DARK / ALWAYS MOVING</p>
-      <h1 id="scene-title">Neon <em>Rain</em></h1>
-      <p class="description">A city at night, breathing with the sound around you.</p>
+      @if (selectedScene() === 'neon-rain') {
+        <h1 id="scene-title">Neon <em>Rain</em></h1>
+      } @else {
+        <h1 id="scene-title">Chromatic <em>Drift</em></h1>
+      }
+      <p class="description">{{ selectedSceneInfo().description }}</p>
       <label class="session-control" for="audio-session-mode">
         <span>Audio Session</span>
         <select id="audio-session-mode" [value]="requestedAudioSessionMode()" (change)="onAudioSessionModeChange($event)" [disabled]="!microphoneDiagnostics().audioSessionAvailable || status() === 'requesting'">
@@ -34,6 +38,15 @@
     <div class="live-label"><span class="live-dot" aria-hidden="true"></span><span>{{ isLivelyBuild ? 'SYSTEM AUDIO · LIVELY' : 'LISTENING TO THE ROOM' }}</span></div>
     @if (!isLivelyBuild) { <button class="stop-button" type="button" (click)="stopListening()">Stop</button> }
   }
+
+  <label class="scene-picker" for="scene-choice">
+    <span>SCENE</span>
+    <select id="scene-choice" aria-label="Choose scene" [value]="selectedScene()" (change)="onSceneChange($event)">
+      @for (scene of scenes; track scene.id) {
+        <option [value]="scene.id">{{ scene.label }}</option>
+      }
+    </select>
+  </label>
 
   @if (debugVisible()) {
     <aside class="debug-panel" aria-label="Audio debug information">

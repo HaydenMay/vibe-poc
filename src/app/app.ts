@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, ViewChild, signal } from '@angular/core';
+import { AfterViewInit, Component, computed, ElementRef, NgZone, OnDestroy, ViewChild, signal } from '@angular/core';
 import { AUDIO_PROVIDER_MODE } from './audio-provider-mode';
 import { AudioReactiveFrame, EMPTY_AUDIO_FRAME } from './audio-reactive-frame';
 import {
@@ -8,8 +8,8 @@ import {
   MicrophoneStatus,
 } from './microphone-audio.provider';
 import { LivelyAudioDiagnostics, LivelyAudioProvider } from './lively-audio.provider';
-import { NeonRainEnvironment } from './neon-rain.environment';
 import { VibeEnvironment } from './vibe-environment';
+import { createVibeEnvironment, VIBE_SCENES, VibeSceneId } from './vibe-scenes';
 
 const IS_LIVELY_BUILD = AUDIO_PROVIDER_MODE === 'lively';
 
@@ -48,6 +48,11 @@ export class App implements AfterViewInit, OnDestroy {
 
   readonly isLivelyBuild = IS_LIVELY_BUILD;
   readonly providerName = IS_LIVELY_BUILD ? 'Lively' : 'Microphone';
+  readonly scenes = VIBE_SCENES;
+  readonly selectedScene = signal<VibeSceneId>('neon-rain');
+  readonly selectedSceneInfo = computed(() =>
+    VIBE_SCENES.find((scene) => scene.id === this.selectedScene()) ?? VIBE_SCENES[0],
+  );
   readonly frame = signal<AudioReactiveFrame>({ ...EMPTY_AUDIO_FRAME });
   readonly debugVisible = signal(false);
   readonly fps = signal(0);
@@ -86,9 +91,7 @@ export class App implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     try {
       this.zone.runOutsideAngular(() => {
-        this.environment = new NeonRainEnvironment(this.sceneCanvas.nativeElement);
-        this.environment.start();
-        this.resizeEnvironment();
+        this.activateScene(this.selectedScene());
         window.addEventListener('resize', this.resizeEnvironment);
         window.visualViewport?.addEventListener('resize', this.resizeEnvironment);
         if (IS_LIVELY_BUILD) this.livelyAudio.start(this.onWallpaperPause);
@@ -101,6 +104,15 @@ export class App implements AfterViewInit, OnDestroy {
 
   toggleDebug(): void {
     this.debugVisible.update((visible) => !visible);
+  }
+
+  onSceneChange(event: Event): void {
+    const sceneId = (event.target as HTMLSelectElement).value;
+    if (!VIBE_SCENES.some((scene) => scene.id === sceneId)) return;
+
+    const selectedScene = sceneId as VibeSceneId;
+    this.selectedScene.set(selectedScene);
+    this.zone.runOutsideAngular(() => this.activateScene(selectedScene));
   }
 
   onAudioSessionModeChange(event: Event): void {
@@ -128,7 +140,7 @@ export class App implements AfterViewInit, OnDestroy {
     this.microphoneAudio?.stop();
     this.zone.run(() => {
       this.status.set(this.microphoneAudio?.status ?? 'stopped');
-      this.message.set('The rain is still here. Start Vibe to listen again.');
+      this.message.set('The ambience is still here. Start Vibe to listen again.');
       this.error.set('');
       this.syncDiagnostics();
     });
@@ -150,6 +162,14 @@ export class App implements AfterViewInit, OnDestroy {
   private readonly resizeEnvironment = (): void => {
     this.environment?.resize(window.innerWidth, window.innerHeight);
   };
+
+  private activateScene(sceneId: VibeSceneId): void {
+    this.environment?.stop();
+    this.environment = createVibeEnvironment(sceneId, this.sceneCanvas.nativeElement);
+    this.environment.start();
+    this.lastSceneFrame = 0;
+    this.resizeEnvironment();
+  }
 
   private readonly renderScene = (time: number): void => {
     if (this.destroyed || this.scenePaused) return;
